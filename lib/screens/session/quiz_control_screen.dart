@@ -200,6 +200,9 @@ class _QuizControlScreenState extends ConsumerState<QuizControlScreen> {
       });
     }
 
+    // Save completed session to history
+    ref.read(storageServiceProvider).saveSession(session);
+
     // Stop the server and release the port for next session
     activeServerService?.stop();
     activeServerService = null;
