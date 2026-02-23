@@ -1,6 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
 import '../../models/quiz.dart';
 import '../../models/question.dart';
 import '../../models/quiz_settings.dart';
@@ -303,19 +307,126 @@ class _QuizEditorScreenState extends ConsumerState<QuizEditorScreen> {
     ref.read(quizListProvider.notifier).updateQuiz(_quiz);
   }
 
-  void _importQuestions() {
-    // TODO: Implement file picker for CSV import
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('CSV import coming soon')));
+  Future<void> _importQuestions() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['csv', 'json'],
+      );
+      if (result == null || result.files.isEmpty) return;
+
+      final file = File(result.files.single.path!);
+      final content = await file.readAsString();
+      final ext = result.files.single.extension?.toLowerCase();
+
+      List<Question> imported;
+      if (ext == 'json') {
+        final quiz = CsvService.importQuizFromJson(content);
+        imported = quiz.questions;
+      } else {
+        imported = CsvService.importQuestionsFromCsv(content);
+      }
+
+      if (imported.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No valid questions found in file')),
+          );
+        }
+        return;
+      }
+
+      setState(() {
+        _quiz = _quiz.copyWith(questions: [..._quiz.questions, ...imported]);
+      });
+      _saveQuizSilently();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Imported ${imported.length} questions'),
+            backgroundColor: AppTheme.correct,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Import failed: $e'),
+            backgroundColor: AppTheme.error,
+          ),
+        );
+      }
+    }
   }
 
-  void _exportQuestions() {
-    final _ = CsvService.exportQuizToCsv(_quiz);
-    // TODO: Save to file system
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Exported ${_quiz.questions.length} questions')),
-    );
+  Future<void> _exportQuestions() async {
+    if (_quiz.questions.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('No questions to export')));
+      return;
+    }
+
+    try {
+      // Show format chooser
+      final format = await showDialog<String>(
+        context: context,
+        builder: (ctx) => SimpleDialog(
+          title: const Text('Export Format'),
+          children: [
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, 'csv'),
+              child: const ListTile(
+                leading: Icon(Icons.table_chart_rounded),
+                title: Text('CSV'),
+                subtitle: Text('Spreadsheet compatible'),
+              ),
+            ),
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, 'json'),
+              child: const ListTile(
+                leading: Icon(Icons.data_object_rounded),
+                title: Text('JSON'),
+                subtitle: Text('Full quiz data with settings'),
+              ),
+            ),
+          ],
+        ),
+      );
+      if (format == null) return;
+
+      final String content;
+      final String fileName;
+      if (format == 'json') {
+        content = CsvService.exportQuizToJson(_quiz);
+        fileName =
+            '${_quiz.title.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_')}.json';
+      } else {
+        content = CsvService.exportQuizToCsv(_quiz);
+        fileName =
+            '${_quiz.title.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_')}.csv';
+      }
+
+      // Write to temp file and share
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/$fileName');
+      await file.writeAsString(content);
+
+      await Share.shareXFiles([
+        XFile(file.path),
+      ], subject: 'Export: ${_quiz.title}');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export failed: $e'),
+            backgroundColor: AppTheme.error,
+          ),
+        );
+      }
+    }
   }
 }
 

@@ -1,0 +1,22 @@
+﻿Analyzing quiz_editor_screen.dart...                            
+
+  error - Undefined name 'SharePlus' - lib\screens\quiz_editor\quiz_editor_screen.dart:417:13 - undefined_identifier
+  error - The method 'ShareParams' isn't defined for the type '_QuizEditorScreenState' - lib\screens\quiz_editor\quiz_editor_screen.dart:418:9 - undefined_method
+
+flutter : 2 issues found. 
+(ran in 1.0s)
+At line:1 char:1
++ flutter analyze lib/screen
+s/quiz_editor/quiz_editor_sc
+reen.dart 2>&1  ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~
+    + CategoryInfo          
+    : NotSpecified: (2 iss  
+  ues found. (ran in 1.0s   
+ ):String) [], RemoteExc    
+eption
+    + FullyQualifiedErrorId 
+    : NativeCommandError
+ 

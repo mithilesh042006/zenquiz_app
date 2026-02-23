@@ -1,8 +1,12 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
 import '../../providers/session_provider.dart';
 import '../../providers/quiz_provider.dart';
+import '../../services/csv_service.dart';
 import '../../theme/app_theme.dart';
 
 class ResultsScreen extends ConsumerWidget {
@@ -25,6 +29,13 @@ class ResultsScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Results'),
         automaticallyImplyLeading: false,
+        actions: [
+          IconButton(
+            onPressed: () => _exportResults(context, ref),
+            icon: const Icon(Icons.ios_share_rounded),
+            tooltip: 'Export Results',
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(24),
@@ -110,20 +121,68 @@ class ResultsScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  ref.read(sessionProvider.notifier).clearSession();
-                  context.go('/');
-                },
-                child: const Text('Back to Home'),
-              ),
+            // Export + Back buttons
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _exportResults(context, ref),
+                    icon: const Icon(Icons.download_rounded),
+                    label: const Text('Export Results'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      ref.read(sessionProvider.notifier).clearSession();
+                      context.go('/');
+                    },
+                    child: const Text('Back to Home'),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _exportResults(BuildContext context, WidgetRef ref) async {
+    final session = ref.read(sessionProvider);
+    if (session == null) return;
+
+    final quiz = ref.read(quizListProvider.notifier).getQuiz(session.quizId);
+    if (quiz == null) return;
+
+    try {
+      final csvContent = CsvService.exportResultsToCsv(
+        session.participants,
+        quiz.questions,
+      );
+
+      final quizTitle = quiz.title.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
+      final timestamp = DateTime.now().toIso8601String().split('T').first;
+      final fileName = '${quizTitle}_results_$timestamp.csv';
+
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/$fileName');
+      await file.writeAsString(csvContent);
+
+      await Share.shareXFiles([
+        XFile(file.path),
+      ], subject: 'Quiz Results: ${quiz.title}');
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export failed: $e'),
+            backgroundColor: AppTheme.error,
+          ),
+        );
+      }
+    }
   }
 }
 

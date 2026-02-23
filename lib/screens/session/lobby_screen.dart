@@ -81,6 +81,11 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen>
         return;
       }
 
+      // Stop any lingering server from a previous session
+      await activeServerService?.stop();
+      activeServerService = null;
+      _serverService = null;
+
       // Start server
       _serverService = ServerService(port: 8080);
       _serverService!.onParticipantJoin = _onParticipantJoin;

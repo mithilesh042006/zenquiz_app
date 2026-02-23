@@ -200,6 +200,10 @@ class _QuizControlScreenState extends ConsumerState<QuizControlScreen> {
       });
     }
 
+    // Stop the server and release the port for next session
+    activeServerService?.stop();
+    activeServerService = null;
+
     context.go('/results');
   }
 
