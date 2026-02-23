@@ -23,7 +23,11 @@ typedef OnAnswerReceived =
 class ServerService {
   HttpServer? _server;
   final Map<String, WebSocketChannel> _clients = {};
+  final Map<String, String> _participantNames = {}; // id -> teamName
   final int port;
+
+  /// Stores the last broadcast state so reconnecting clients get caught up.
+  Map<String, dynamic>? _lastBroadcastState;
 
   // Event callbacks
   OnParticipantJoin? onParticipantJoin;
@@ -47,17 +51,45 @@ class ServerService {
 
             switch (type) {
               case 'join':
-                participantId = const Uuid().v4();
                 final teamName = data['teamName'] as String? ?? 'Unknown';
-                _clients[participantId!] = ws;
-                onParticipantJoin?.call(participantId!, teamName);
-                // Send back the participant ID
-                ws.sink.add(
-                  jsonEncode({
-                    'type': 'joined',
-                    'participantId': participantId,
-                  }),
-                );
+                final existingId = data['participantId'] as String?;
+
+                // Check if this is a reconnection
+                if (existingId != null &&
+                    _participantNames.containsKey(existingId)) {
+                  // Rejoin: reuse existing ID
+                  participantId = existingId;
+                  _clients[participantId!] = ws;
+
+                  // Send back confirmation
+                  ws.sink.add(
+                    jsonEncode({
+                      'type': 'joined',
+                      'participantId': participantId,
+                      'reconnected': true,
+                    }),
+                  );
+
+                  // Send current state so participant catches up
+                  if (_lastBroadcastState != null) {
+                    ws.sink.add(jsonEncode(_lastBroadcastState!));
+                  }
+                } else {
+                  // New participant
+                  participantId = const Uuid().v4();
+                  _clients[participantId!] = ws;
+                  _participantNames[participantId!] = teamName;
+                  onParticipantJoin?.call(participantId!, teamName);
+
+                  // Send back the participant ID
+                  ws.sink.add(
+                    jsonEncode({
+                      'type': 'joined',
+                      'participantId': participantId,
+                      'reconnected': false,
+                    }),
+                  );
+                }
                 break;
 
               case 'answer':
@@ -83,13 +115,13 @@ class ServerService {
         onDone: () {
           if (participantId != null) {
             _clients.remove(participantId);
-            onParticipantLeave?.call(participantId!);
+            // Don't remove from _participantNames — they might reconnect
+            // Don't call onParticipantLeave — keep them in the session
           }
         },
         onError: (error) {
           if (participantId != null) {
             _clients.remove(participantId);
-            onParticipantLeave?.call(participantId!);
           }
         },
       );
@@ -148,7 +180,6 @@ class ServerService {
 
   /// Serve the participant web client files.
   shelf.Response _serveWebClient(shelf.Request request) {
-    // We'll serve embedded HTML/CSS/JS as strings
     final path = request.url.path;
 
     if (path.isEmpty || path == '/' || path == 'index.html') {
@@ -175,17 +206,22 @@ class ServerService {
 
   /// Stop the server.
   Future<void> stop() async {
-    // Close all WebSocket connections
     for (final client in _clients.values) {
       await client.sink.close();
     }
     _clients.clear();
+    _participantNames.clear();
+    _lastBroadcastState = null;
     await _server?.close(force: true);
     _server = null;
   }
 
   /// Broadcast a message to all connected clients.
+  /// Also stores the message as current state for reconnecting clients.
   void broadcast(Map<String, dynamic> message) {
+    // Store the last broadcast state for reconnection
+    _lastBroadcastState = Map.from(message);
+
     final encoded = jsonEncode(message);
     for (final client in _clients.values) {
       try {
@@ -208,8 +244,6 @@ class ServerService {
   int get connectedCount => _clients.length;
 
   // ─── Embedded Web Client ───
-  // These will be replaced with proper files in Phase 4.
-  // For now, a minimal placeholder.
 
   static const String _webClientHtml = '''
 <!DOCTYPE html>
@@ -244,6 +278,7 @@ class ServerService {
       <div id="feedback-icon" class="feedback-icon"></div>
       <div id="feedback-text" class="feedback-text"></div>
       <div id="points-earned" class="points"></div>
+      <p class="subtitle">Waiting for next question...</p>
     </div>
     <div id="leaderboard-screen" class="screen">
       <h2>🏆 Leaderboard</h2>
@@ -253,6 +288,11 @@ class ServerService {
       <h2>🎉 Quiz Complete!</h2>
       <div id="final-rank" class="final-rank"></div>
       <div id="final-score" class="final-score"></div>
+    </div>
+    <div id="disconnected-screen" class="screen">
+      <div class="logo">⚡ ZenQuiz</div>
+      <p class="subtitle">Connection lost. Reconnecting...</p>
+      <div class="loader"></div>
     </div>
   </div>
   <script src="app.js"></script>
@@ -329,45 +369,115 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
   static const String _webClientJs = r'''
 let ws;
-let participantId;
-let currentQuestionId;
-let timerInterval;
-let startTime;
+let participantId = null;
+let currentQuestionId = null;
+let timerInterval = null;
+let startTime = null;
+let teamName = null;
+let reconnectAttempts = 0;
+let intentionalClose = false;
+let currentScreen = 'join-screen';
 
+// ─── Session Persistence ───
+function saveSession() {
+  if (participantId && teamName) {
+    localStorage.setItem('zenquiz_session', JSON.stringify({
+      participantId,
+      teamName,
+      host: location.host,
+    }));
+  }
+}
+
+function loadSession() {
+  try {
+    const saved = localStorage.getItem('zenquiz_session');
+    if (!saved) return null;
+    const session = JSON.parse(saved);
+    // Only restore if same host
+    if (session.host === location.host) return session;
+    localStorage.removeItem('zenquiz_session');
+  } catch (_) {}
+  return null;
+}
+
+function clearSession() {
+  localStorage.removeItem('zenquiz_session');
+  participantId = null;
+  teamName = null;
+}
+
+// ─── Screen Management ───
 function showScreen(id) {
+  currentScreen = id;
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
 }
 
-function joinGame() {
-  const name = document.getElementById('team-name').value.trim();
-  if (!name) return;
+// ─── Connection ───
+function connect() {
+  if (ws && ws.readyState === WebSocket.OPEN) return;
 
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   ws = new WebSocket(`${proto}//${location.host}/ws`);
 
   ws.onopen = () => {
-    ws.send(JSON.stringify({ type: 'join', teamName: name }));
+    reconnectAttempts = 0;
+    // Send join with existing participantId for reconnection
+    ws.send(JSON.stringify({
+      type: 'join',
+      teamName: teamName,
+      participantId: participantId,
+    }));
   };
 
   ws.onmessage = (event) => {
-    const msg = JSON.parse(event.data);
-    handleMessage(msg);
+    try {
+      const msg = JSON.parse(event.data);
+      handleMessage(msg);
+    } catch (_) {}
   };
 
   ws.onclose = () => {
-    // Try to reconnect
-    setTimeout(() => { if (!ws || ws.readyState === WebSocket.CLOSED) joinGame(); }, 3000);
+    if (intentionalClose) return;
+    // Show disconnected screen only if we were in an active session
+    if (participantId && currentScreen !== 'join-screen') {
+      showScreen('disconnected-screen');
+    }
+    // Auto-reconnect with exponential backoff
+    const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
+    reconnectAttempts++;
+    setTimeout(() => {
+      if (participantId) connect();
+    }, delay);
   };
 
-  document.getElementById('team-display').textContent = name;
-  showScreen('lobby-screen');
+  ws.onerror = () => {};
 }
 
+// ─── Join ───
+function joinGame() {
+  const nameInput = document.getElementById('team-name').value.trim();
+  if (!nameInput) return;
+
+  teamName = nameInput;
+  document.getElementById('team-display').textContent = teamName;
+  showScreen('lobby-screen');
+  connect();
+}
+
+// ─── Message Handling ───
 function handleMessage(msg) {
   switch (msg.type) {
     case 'joined':
       participantId = msg.participantId;
+      saveSession();
+      if (!msg.reconnected) {
+        // Fresh join — show lobby
+        document.getElementById('team-display').textContent = teamName;
+        showScreen('lobby-screen');
+      }
+      // If reconnected, server will send current state next
       break;
 
     case 'question':
@@ -388,6 +498,7 @@ function handleMessage(msg) {
   }
 }
 
+// ─── Question ───
 function showQuestion(msg) {
   currentQuestionId = msg.questionId;
   startTime = Date.now();
@@ -424,6 +535,7 @@ function showQuestion(msg) {
   showScreen('question-screen');
 }
 
+// ─── Submit Answer ───
 function submitAnswer(index) {
   clearInterval(timerInterval);
   const responseTimeMs = Date.now() - startTime;
@@ -435,14 +547,17 @@ function submitAnswer(index) {
     if (i === index) btn.classList.add('selected');
   });
 
-  ws.send(JSON.stringify({
-    type: 'answer',
-    questionId: currentQuestionId,
-    selectedIndices: index >= 0 ? [index] : [],
-    responseTimeMs: responseTimeMs,
-  }));
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({
+      type: 'answer',
+      questionId: currentQuestionId,
+      selectedIndices: index >= 0 ? [index] : [],
+      responseTimeMs: responseTimeMs,
+    }));
+  }
 }
 
+// ─── Feedback ───
 function showFeedback(msg) {
   const icon = document.getElementById('feedback-icon');
   const text = document.getElementById('feedback-text');
@@ -462,6 +577,7 @@ function showFeedback(msg) {
   showScreen('feedback-screen');
 }
 
+// ─── Leaderboard ───
 function showLeaderboard(msg) {
   const list = document.getElementById('leaderboard-list');
   list.innerHTML = '';
@@ -480,15 +596,29 @@ function showLeaderboard(msg) {
   showScreen('leaderboard-screen');
 }
 
+// ─── Final Results ───
 function showFinalResults(msg) {
   document.getElementById('final-rank').textContent = `#${msg.rank}`;
   document.getElementById('final-score').textContent = `Score: ${msg.score}`;
+  clearSession();
   showScreen('final-screen');
 }
 
-// Enter key to join
+// ─── Enter key to join ───
 document.getElementById('team-name').addEventListener('keypress', (e) => {
   if (e.key === 'Enter') joinGame();
 });
+
+// ─── Auto-reconnect on page load ───
+(function init() {
+  const session = loadSession();
+  if (session) {
+    participantId = session.participantId;
+    teamName = session.teamName;
+    document.getElementById('team-display').textContent = teamName;
+    showScreen('lobby-screen');
+    connect();
+  }
+})();
 ''';
 }

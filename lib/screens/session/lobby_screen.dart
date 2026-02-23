@@ -1,7 +1,8 @@
-import 'dart:async'; // ignore: unused_import
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../models/session.dart';
 import '../../models/participant.dart';
@@ -11,6 +12,7 @@ import '../../providers/server_provider.dart';
 import '../../services/server_service.dart';
 import '../../services/network_service.dart';
 import '../../theme/app_theme.dart';
+import 'quiz_control_screen.dart';
 
 class LobbyScreen extends ConsumerStatefulWidget {
   final String quizId;
@@ -60,12 +62,20 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen>
       final session = Session.fromQuiz(quiz);
       ref.read(sessionProvider.notifier).startSession(session);
 
+      // Request location permission (needed for Wi-Fi IP on Android 10+)
+      if (Platform.isAndroid) {
+        final status = await Permission.location.request();
+        if (!status.isGranted) {
+          // Still try — fallback detection may work
+        }
+      }
+
       // Detect IP
       final ip = await _networkService.getWifiIP();
       if (ip == null) {
         setState(() {
           _error =
-              'Could not detect network IP. Ensure you are connected to Wi-Fi.';
+              'Could not detect network IP. Ensure you are connected to Wi-Fi and location permission is granted.';
           _isLoading = false;
         });
         return;
@@ -76,6 +86,9 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen>
       _serverService!.onParticipantJoin = _onParticipantJoin;
       _serverService!.onParticipantLeave = _onParticipantLeave;
       await _serverService!.start();
+
+      // Set global reference so QuizControlScreen can broadcast
+      activeServerService = _serverService;
 
       ref.read(serverProvider.notifier).setRunning(ip, 8080);
       setState(() => _isLoading = false);
@@ -110,6 +123,51 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen>
       return;
     }
     context.go('/session/control');
+  }
+
+  void _showEditIpDialog(BuildContext context, String currentIp) {
+    final controller = TextEditingController(text: currentIp);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit IP Address'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'If the detected IP is wrong, enter your Wi-Fi IP manually.',
+              style: TextStyle(fontSize: 13, color: AppTheme.textMuted),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              decoration: const InputDecoration(
+                labelText: 'IP Address',
+                hintText: '192.168.1.xxx',
+              ),
+              keyboardType: TextInputType.number,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final newIp = controller.text.trim();
+              if (newIp.isNotEmpty) {
+                ref.read(serverProvider.notifier).setRunning(newIp, 8080);
+              }
+              Navigator.pop(ctx);
+            },
+            child: const Text('Update'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -218,34 +276,47 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen>
                 ),
               ),
               const SizedBox(height: 16),
-              // ─── Join URL ───
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 14,
-                ),
-                decoration: BoxDecoration(
-                  color: AppTheme.surface,
-                  borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-                  border: Border.all(color: AppTheme.surfaceLight),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.link_rounded,
-                      color: AppTheme.gold,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      serverState.joinUrl ?? '',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              // ─── Join URL (tap to edit IP) ───
+              GestureDetector(
+                onTap: () =>
+                    _showEditIpDialog(context, serverState.ipAddress ?? ''),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 14,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppTheme.surface,
+                    borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                    border: Border.all(color: AppTheme.surfaceLight),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.link_rounded,
                         color: AppTheme.gold,
-                        fontFamily: 'monospace',
+                        size: 20,
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          serverState.joinUrl ?? '',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                color: AppTheme.gold,
+                                fontFamily: 'monospace',
+                              ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(
+                        Icons.edit_rounded,
+                        color: AppTheme.textDim,
+                        size: 16,
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 24),
