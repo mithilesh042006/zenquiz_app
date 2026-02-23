@@ -116,7 +116,33 @@ class ServerService {
           return _serveWebClient(request);
         });
 
-    _server = await shelf_io.serve(handler, InternetAddress.anyIPv4, port);
+    try {
+      _server = await shelf_io.serve(handler, InternetAddress.anyIPv4, port);
+    } catch (_) {
+      // Fallback: try binding to specific interface (needed on some Android devices)
+      try {
+        final interfaces = await NetworkInterface.list(
+          type: InternetAddressType.IPv4,
+        );
+        InternetAddress? bindAddress;
+        for (final iface in interfaces) {
+          for (final addr in iface.addresses) {
+            if (!addr.isLoopback) {
+              bindAddress = addr;
+              break;
+            }
+          }
+          if (bindAddress != null) break;
+        }
+        _server = await shelf_io.serve(
+          handler,
+          bindAddress ?? InternetAddress.loopbackIPv4,
+          port,
+        );
+      } catch (e) {
+        rethrow;
+      }
+    }
     _server!.autoCompress = true;
   }
 

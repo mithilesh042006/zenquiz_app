@@ -35,7 +35,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen>
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
-    _startServer();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _startServer());
   }
 
   @override
