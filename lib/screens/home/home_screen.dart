@@ -90,10 +90,20 @@ class HomeScreen extends ConsumerWidget {
                       'Your Quizzes',
                       style: Theme.of(context).textTheme.headlineMedium,
                     ),
-                    IconButton(
+                    OutlinedButton.icon(
                       onPressed: () => context.push('/history'),
-                      icon: const Icon(Icons.history_rounded),
-                      tooltip: 'Session History',
+                      icon: const Icon(Icons.history_rounded, size: 18),
+                      label: const Text('Session History'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                        textStyle: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     ),
                   ],
                 ),

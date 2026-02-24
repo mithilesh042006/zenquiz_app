@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../providers/quiz_provider.dart';
 import '../../theme/app_theme.dart';
@@ -46,59 +47,65 @@ class HistoryScreen extends ConsumerWidget {
                     ? DateFormat('MMM d, y – h:mm a').format(session.startedAt!)
                     : 'Unknown date';
 
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppTheme.surface,
-                    borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              session.quizTitle,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 16,
+                return GestureDetector(
+                  onTap: () => context.push('/history/${session.id}'),
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppTheme.surface,
+                      borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                session.quizTitle,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 16,
+                                ),
                               ),
                             ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppTheme.gold.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              '${session.participantCount} players',
-                              style: const TextStyle(
-                                color: AppTheme.gold,
-                                fontSize: 12,
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
                               ),
+                              decoration: BoxDecoration(
+                                color: AppTheme.gold.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                '${session.participantCount} players',
+                                style: const TextStyle(
+                                  color: AppTheme.gold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          date,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        if (session.participants.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            '🏆 ${session.leaderboard.first.teamName}',
+                            style: const TextStyle(
+                              color: AppTheme.gold,
+                              fontSize: 13,
                             ),
                           ),
                         ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(date, style: Theme.of(context).textTheme.bodySmall),
-                      if (session.participants.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          '🏆 ${session.leaderboard.first.teamName}',
-                          style: const TextStyle(
-                            color: AppTheme.gold,
-                            fontSize: 13,
-                          ),
-                        ),
                       ],
-                    ],
+                    ),
                   ),
                 );
               },

@@ -8,6 +8,7 @@ import '../screens/session/quiz_control_screen.dart';
 import '../screens/session/leaderboard_screen.dart';
 import '../screens/results/results_screen.dart';
 import '../screens/history/history_screen.dart';
+import '../screens/history/session_detail_screen.dart';
 import '../theme/app_theme.dart';
 
 final GoRouter router = GoRouter(
@@ -62,6 +63,13 @@ final GoRouter router = GoRouter(
     GoRoute(
       path: '/history',
       builder: (context, state) => const HistoryScreen(),
+    ),
+    GoRoute(
+      path: '/history/:sessionId',
+      builder: (context, state) {
+        final sessionId = state.pathParameters['sessionId']!;
+        return SessionDetailScreen(sessionId: sessionId);
+      },
     ),
   ],
 );
