@@ -39,7 +39,7 @@ class HomeScreen extends ConsumerWidget {
                         ),
                         const SizedBox(width: 12),
                         Text(
-                          'ZenQuiz',
+                          'InnoQuiz',
                           style: Theme.of(context).textTheme.displaySmall
                               ?.copyWith(fontWeight: FontWeight.w700),
                         ),
