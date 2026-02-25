@@ -11,6 +11,7 @@ class Question {
   final List<int> correctIndices;
   final QuestionType type;
   final int timeLimitSeconds; // 0 means use quiz default
+  final String? imageBase64; // optional image as base64 string
 
   Question({
     String? id,
@@ -19,6 +20,7 @@ class Question {
     required this.correctIndices,
     this.type = QuestionType.singleChoice,
     this.timeLimitSeconds = 0,
+    this.imageBase64,
   }) : id = id ?? const Uuid().v4();
 
   Question copyWith({
@@ -28,6 +30,8 @@ class Question {
     List<int>? correctIndices,
     QuestionType? type,
     int? timeLimitSeconds,
+    String? imageBase64,
+    bool clearImage = false,
   }) {
     return Question(
       id: id ?? this.id,
@@ -36,6 +40,7 @@ class Question {
       correctIndices: correctIndices ?? List.from(this.correctIndices),
       type: type ?? this.type,
       timeLimitSeconds: timeLimitSeconds ?? this.timeLimitSeconds,
+      imageBase64: clearImage ? null : (imageBase64 ?? this.imageBase64),
     );
   }
 
@@ -61,6 +66,7 @@ class Question {
         orElse: () => QuestionType.singleChoice,
       ),
       timeLimitSeconds: json['timeLimitSeconds'] as int? ?? 0,
+      imageBase64: json['imageBase64'] as String?,
     );
   }
 
@@ -71,5 +77,6 @@ class Question {
     'correctIndices': correctIndices,
     'type': type.name,
     'timeLimitSeconds': timeLimitSeconds,
+    if (imageBase64 != null) 'imageBase64': imageBase64,
   };
 }

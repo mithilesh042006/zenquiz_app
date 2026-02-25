@@ -272,6 +272,7 @@ class ServerService {
       <div class="timer-bar"><div id="timer-fill" class="timer-fill"></div></div>
       <div id="question-number" class="q-number"></div>
       <div id="question-text" class="q-text"></div>
+      <img id="question-image" class="q-image" style="display:none" />
       <div id="options" class="options"></div>
     </div>
     <div id="feedback-screen" class="screen">
@@ -341,6 +342,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .timer-fill { height: 100%; background: #FFD700; border-radius: 3px; transition: width 0.1s linear; width: 100%; }
 .q-number { color: #B0B0B0; font-size: 0.9rem; }
 .q-text { font-size: 1.3rem; font-weight: 600; text-align: center; padding: 16px 0; }
+.q-image { max-width: 100%; max-height: 220px; border-radius: 12px; object-fit: contain; margin-bottom: 8px; }
 .options { width: 100%; display: flex; flex-direction: column; gap: 10px; }
 .option-btn {
   width: 100%; padding: 14px 18px; border-radius: 12px;
@@ -506,6 +508,16 @@ function showQuestion(msg) {
   document.getElementById('question-number').textContent =
     `Question ${msg.questionNumber} of ${msg.totalQuestions}`;
   document.getElementById('question-text').textContent = msg.text;
+
+  // Show image if present
+  const img = document.getElementById('question-image');
+  if (msg.imageBase64) {
+    img.src = 'data:image/jpeg;base64,' + msg.imageBase64;
+    img.style.display = 'block';
+  } else {
+    img.src = '';
+    img.style.display = 'none';
+  }
 
   const optionsDiv = document.getElementById('options');
   optionsDiv.innerHTML = '';

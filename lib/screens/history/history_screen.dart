@@ -5,11 +5,16 @@ import 'package:intl/intl.dart';
 import '../../providers/quiz_provider.dart';
 import '../../theme/app_theme.dart';
 
-class HistoryScreen extends ConsumerWidget {
+class HistoryScreen extends ConsumerStatefulWidget {
   const HistoryScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HistoryScreen> createState() => _HistoryScreenState();
+}
+
+class _HistoryScreenState extends ConsumerState<HistoryScreen> {
+  @override
+  Widget build(BuildContext context) {
     final storage = ref.read(storageServiceProvider);
     final sessions = storage.getSessionHistory();
 
@@ -47,69 +52,123 @@ class HistoryScreen extends ConsumerWidget {
                     ? DateFormat('MMM d, y – h:mm a').format(session.startedAt!)
                     : 'Unknown date';
 
-                return GestureDetector(
-                  onTap: () => context.push('/history/${session.id}'),
-                  child: Container(
+                return Dismissible(
+                  key: Key(session.id),
+                  direction: DismissDirection.endToStart,
+                  background: Container(
                     margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.only(right: 20),
                     decoration: BoxDecoration(
-                      color: AppTheme.surface,
+                      color: AppTheme.error,
                       borderRadius: BorderRadius.circular(AppTheme.radiusMd),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                session.quizTitle,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 16,
+                    alignment: Alignment.centerRight,
+                    child: const Icon(
+                      Icons.delete_rounded,
+                      color: Colors.white,
+                    ),
+                  ),
+                  confirmDismiss: (_) =>
+                      _confirmDelete(context, session.quizTitle),
+                  onDismissed: (_) {
+                    storage.deleteSessionResult(session.id);
+                    setState(() {});
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Deleted "${session.quizTitle}" session'),
+                        backgroundColor: AppTheme.surface,
+                      ),
+                    );
+                  },
+                  child: GestureDetector(
+                    onTap: () => context.push('/history/${session.id}'),
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppTheme.surface,
+                        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  session.quizTitle,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 16,
+                                  ),
                                 ),
                               ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppTheme.gold.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                '${session.participantCount} players',
-                                style: const TextStyle(
-                                  color: AppTheme.gold,
-                                  fontSize: 12,
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
                                 ),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.gold.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  '${session.participantCount} players',
+                                  style: const TextStyle(
+                                    color: AppTheme.gold,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            date,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          if (session.participants.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              '🏆 ${session.leaderboard.first.teamName}',
+                              style: const TextStyle(
+                                color: AppTheme.gold,
+                                fontSize: 13,
                               ),
                             ),
                           ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          date,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                        if (session.participants.isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            '🏆 ${session.leaderboard.first.teamName}',
-                            style: const TextStyle(
-                              color: AppTheme.gold,
-                              fontSize: 13,
-                            ),
-                          ),
                         ],
-                      ],
+                      ),
                     ),
                   ),
                 );
               },
             ),
     );
+  }
+
+  Future<bool> _confirmDelete(BuildContext context, String title) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: AppTheme.surface,
+            title: const Text('Delete Session'),
+            content: Text('Delete "$title" session? This cannot be undone.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text(
+                  'Delete',
+                  style: TextStyle(color: AppTheme.error),
+                ),
+              ),
+            ],
+          ),
+        ) ??
+        false;
   }
 }

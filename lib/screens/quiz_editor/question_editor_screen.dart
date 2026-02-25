@@ -1,6 +1,9 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../models/question.dart';
 import '../../providers/quiz_provider.dart';
 import '../../theme/app_theme.dart';
@@ -28,6 +31,7 @@ class _QuestionEditorScreenState extends ConsumerState<QuestionEditorScreen> {
   int _timeLimitSeconds = 0;
   bool _isNew = true;
   String? _questionId;
+  String? _imageBase64;
 
   @override
   void initState() {
@@ -50,6 +54,7 @@ class _QuestionEditorScreenState extends ConsumerState<QuestionEditorScreen> {
           _type = question.type;
           _correctIndices = List.from(question.correctIndices);
           _timeLimitSeconds = question.timeLimitSeconds;
+          _imageBase64 = question.imageBase64;
           _isNew = false;
 
           // Set up option controllers
@@ -146,6 +151,81 @@ class _QuestionEditorScreenState extends ConsumerState<QuestionEditorScreen> {
               ),
             ),
             const SizedBox(height: 24),
+
+            // ─── Question Image (optional) ───
+            Text(
+              'Image (Optional)',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            if (_imageBase64 != null) ...[
+              Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                    child: Image.memory(
+                      base64Decode(_imageBase64!),
+                      width: double.infinity,
+                      height: 180,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: GestureDetector(
+                      onTap: () => setState(() => _imageBase64 = null),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: AppTheme.error,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Icon(
+                          Icons.close_rounded,
+                          size: 18,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ] else ...[
+              GestureDetector(
+                onTap: _pickImage,
+                child: Container(
+                  width: double.infinity,
+                  height: 100,
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceLight,
+                    borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                    border: Border.all(color: AppTheme.surfaceLight),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.add_photo_alternate_rounded,
+                        size: 32,
+                        color: AppTheme.textMuted,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Tap to add image',
+                        style: TextStyle(
+                          color: AppTheme.textMuted,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+            const SizedBox(height: 12),
 
             // ─── Options ───
             Row(
@@ -330,8 +410,69 @@ class _QuestionEditorScreenState extends ConsumerState<QuestionEditorScreen> {
       correctIndices: validIndices,
       type: _type,
       timeLimitSeconds: _timeLimitSeconds,
+      imageBase64: _imageBase64,
     );
 
     context.pop(question);
+  }
+
+  Future<void> _pickImage() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: AppTheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: AppTheme.textDim,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.photo_library_rounded,
+                color: AppTheme.gold,
+              ),
+              title: const Text('Choose from Gallery'),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.camera_alt_rounded,
+                color: AppTheme.gold,
+              ),
+              title: const Text('Take a Photo'),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (source == null) return;
+
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: source,
+      maxWidth: 800,
+      maxHeight: 600,
+      imageQuality: 70,
+    );
+
+    if (picked == null) return;
+
+    final bytes = await File(picked.path).readAsBytes();
+    setState(() {
+      _imageBase64 = base64Encode(bytes);
+    });
   }
 }
