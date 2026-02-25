@@ -1,12 +1,10 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:share_plus/share_plus.dart';
-import 'package:path_provider/path_provider.dart';
 import '../../providers/session_provider.dart';
 import '../../providers/quiz_provider.dart';
 import '../../services/csv_service.dart';
+import '../../services/export_helper.dart';
 import '../../theme/app_theme.dart';
 
 class ResultsScreen extends ConsumerWidget {
@@ -166,13 +164,12 @@ class ResultsScreen extends ConsumerWidget {
       final timestamp = DateTime.now().toIso8601String().split('T').first;
       final fileName = '${quizTitle}_results_$timestamp.csv';
 
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/$fileName');
-      await file.writeAsString(csvContent);
-
-      await Share.shareXFiles([
-        XFile(file.path),
-      ], subject: 'Quiz Results: ${quiz.title}');
+      await ExportHelper.exportFile(
+        context: context,
+        content: csvContent,
+        fileName: fileName,
+        shareSubject: 'Quiz Results: ${quiz.title}',
+      );
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

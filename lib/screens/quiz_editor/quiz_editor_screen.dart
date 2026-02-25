@@ -3,8 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:share_plus/share_plus.dart';
-import 'package:path_provider/path_provider.dart';
+import '../../services/export_helper.dart';
 import '../../models/quiz.dart';
 import '../../models/question.dart';
 import '../../models/quiz_settings.dart';
@@ -409,14 +408,13 @@ class _QuizEditorScreenState extends ConsumerState<QuizEditorScreen> {
             '${_quiz.title.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_')}.csv';
       }
 
-      // Write to temp file and share
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/$fileName');
-      await file.writeAsString(content);
-
-      await Share.shareXFiles([
-        XFile(file.path),
-      ], subject: 'Export: ${_quiz.title}');
+      if (!mounted) return;
+      await ExportHelper.exportFile(
+        context: context,
+        content: content,
+        fileName: fileName,
+        shareSubject: 'Export: ${_quiz.title}',
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

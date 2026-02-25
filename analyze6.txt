@@ -1,0 +1,20 @@
+﻿Analyzing zenquiz...                                            
+
+   info - Don't use 'BuildContext's across async gaps - lib\screens\quiz_editor\quiz_editor_screen.dart:412:9 - use_build_context_synchronously
+
+flutter : 1 issue found. 
+(ran in 150.4s)
+At line:1 char:1
++ flutter analyze 2>&1 | 
+Out-File -FilePath 
+"analyze6.txt" -Encoding UT 
+...
++ ~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          
+    : NotSpecified: (1 iss  
+  ue found. (ran in 150.4   
+ s):String) [], RemoteEx    
+ception
+    + FullyQualifiedErrorId 
+    : NativeCommandError
+ 
