@@ -31,7 +31,7 @@ class _QuestionEditorScreenState extends ConsumerState<QuestionEditorScreen> {
   int _timeLimitSeconds = 0;
   bool _isNew = true;
   String? _questionId;
-  String? _imageBase64;
+  List<String> _imagesBase64 = [];
 
   @override
   void initState() {
@@ -54,7 +54,7 @@ class _QuestionEditorScreenState extends ConsumerState<QuestionEditorScreen> {
           _type = question.type;
           _correctIndices = List.from(question.correctIndices);
           _timeLimitSeconds = question.timeLimitSeconds;
-          _imageBase64 = question.imageBase64;
+          _imagesBase64 = List.from(question.imagesBase64);
           _isNew = false;
 
           // Set up option controllers
@@ -152,80 +152,97 @@ class _QuestionEditorScreenState extends ConsumerState<QuestionEditorScreen> {
             ),
             const SizedBox(height: 24),
 
-            // ─── Question Image (optional) ───
+            // ─── Question Images (optional) ───
             Text(
-              'Image (Optional)',
+              'Images (Optional)',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 8),
-            if (_imageBase64 != null) ...[
-              Stack(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-                    child: Image.memory(
-                      base64Decode(_imageBase64!),
-                      width: double.infinity,
-                      height: 180,
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: GestureDetector(
-                      onTap: () => setState(() => _imageBase64 = null),
+            SizedBox(
+              height: 120,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: _imagesBase64.length + 1, // +1 for add button
+                itemBuilder: (ctx, i) {
+                  if (i == _imagesBase64.length) {
+                    // Add image button
+                    return GestureDetector(
+                      onTap: _pickImage,
                       child: Container(
-                        padding: const EdgeInsets.all(6),
+                        width: 200,
+                        margin: const EdgeInsets.only(right: 8),
                         decoration: BoxDecoration(
-                          color: AppTheme.error,
-                          borderRadius: BorderRadius.circular(20),
+                          color: AppTheme.surfaceLight,
+                          borderRadius: BorderRadius.circular(
+                            AppTheme.radiusMd,
+                          ),
+                          border: Border.all(color: AppTheme.surfaceLight),
                         ),
-                        child: const Icon(
-                          Icons.close_rounded,
-                          size: 18,
-                          color: Colors.white,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.add_photo_alternate_rounded,
+                              size: 28,
+                              color: AppTheme.textMuted,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Add',
+                              style: TextStyle(
+                                color: AppTheme.textMuted,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-            ] else ...[
-              GestureDetector(
-                onTap: _pickImage,
-                child: Container(
-                  width: double.infinity,
-                  height: 100,
-                  decoration: BoxDecoration(
-                    color: AppTheme.surfaceLight,
-                    borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-                    border: Border.all(color: AppTheme.surfaceLight),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                    );
+                  }
+                  // Image thumbnail with remove button
+                  return Stack(
                     children: [
-                      Icon(
-                        Icons.add_photo_alternate_rounded,
-                        size: 32,
-                        color: AppTheme.textMuted,
+                      Container(
+                        width: 140,
+                        margin: const EdgeInsets.only(right: 8),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(
+                            AppTheme.radiusMd,
+                          ),
+                          child: Image.memory(
+                            base64Decode(_imagesBase64[i]),
+                            width: 140,
+                            height: 120,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Tap to add image',
-                        style: TextStyle(
-                          color: AppTheme.textMuted,
-                          fontSize: 13,
+                      Positioned(
+                        top: 4,
+                        right: 12,
+                        child: GestureDetector(
+                          onTap: () =>
+                              setState(() => _imagesBase64.removeAt(i)),
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: AppTheme.error,
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: const Icon(
+                              Icons.close_rounded,
+                              size: 16,
+                              color: Colors.white,
+                            ),
+                          ),
                         ),
                       ),
                     ],
-                  ),
-                ),
+                  );
+                },
               ),
-              const SizedBox(height: 12),
-            ],
-            const SizedBox(height: 12),
+            ),
+            const SizedBox(height: 24),
 
             // ─── Options ───
             Row(
@@ -410,7 +427,7 @@ class _QuestionEditorScreenState extends ConsumerState<QuestionEditorScreen> {
       correctIndices: validIndices,
       type: _type,
       timeLimitSeconds: _timeLimitSeconds,
-      imageBase64: _imageBase64,
+      imagesBase64: _imagesBase64,
     );
 
     context.pop(question);
@@ -472,7 +489,7 @@ class _QuestionEditorScreenState extends ConsumerState<QuestionEditorScreen> {
 
     final bytes = await File(picked.path).readAsBytes();
     setState(() {
-      _imageBase64 = base64Encode(bytes);
+      _imagesBase64.add(base64Encode(bytes));
     });
   }
 }

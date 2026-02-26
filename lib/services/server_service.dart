@@ -272,7 +272,8 @@ class ServerService {
       <div class="timer-bar"><div id="timer-fill" class="timer-fill"></div></div>
       <div id="question-number" class="q-number"></div>
       <div id="question-text" class="q-text"></div>
-      <img id="question-image" class="q-image" style="display:none" />
+      <div id="question-images" class="q-carousel"></div>
+      <div id="carousel-dots" class="carousel-dots"></div>
       <div id="options" class="options"></div>
     </div>
     <div id="feedback-screen" class="screen">
@@ -342,7 +343,24 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .timer-fill { height: 100%; background: #FFD700; border-radius: 3px; transition: width 0.1s linear; width: 100%; }
 .q-number { color: #B0B0B0; font-size: 0.9rem; }
 .q-text { font-size: 1.3rem; font-weight: 600; text-align: center; padding: 16px 0; }
-.q-image { max-width: 100%; max-height: 220px; border-radius: 12px; object-fit: contain; margin-bottom: 8px; }
+.q-carousel {
+  width: 100%; overflow-x: auto; scroll-snap-type: x mandatory;
+  display: flex; -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; border-radius: 12px;
+}
+.q-carousel::-webkit-scrollbar { display: none; }
+.q-carousel:empty { display: none; }
+.q-carousel img {
+  width: 100%; min-width: 100%; max-height: 220px;
+  object-fit: contain; scroll-snap-align: start; flex-shrink: 0;
+}
+.carousel-dots { display: flex; justify-content: center; gap: 6px; padding: 8px 0; }
+.carousel-dots:empty { display: none; }
+.carousel-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #2A2A2A; transition: background 0.2s;
+}
+.carousel-dot.active { background: #FFD700; }
 .options { width: 100%; display: flex; flex-direction: column; gap: 10px; }
 .option-btn {
   width: 100%; padding: 14px 18px; border-radius: 12px;
@@ -509,14 +527,34 @@ function showQuestion(msg) {
     `Question ${msg.questionNumber} of ${msg.totalQuestions}`;
   document.getElementById('question-text').textContent = msg.text;
 
-  // Show image if present
-  const img = document.getElementById('question-image');
-  if (msg.imageBase64) {
-    img.src = 'data:image/jpeg;base64,' + msg.imageBase64;
-    img.style.display = 'block';
-  } else {
-    img.src = '';
-    img.style.display = 'none';
+  // Show images as swipeable carousel
+  const carousel = document.getElementById('question-images');
+  const dotsDiv = document.getElementById('carousel-dots');
+  carousel.innerHTML = '';
+  dotsDiv.innerHTML = '';
+  const images = msg.imagesBase64 || [];
+  if (images.length > 0) {
+    images.forEach((b64, idx) => {
+      const img = document.createElement('img');
+      img.src = 'data:image/jpeg;base64,' + b64;
+      img.alt = 'Image ' + (idx + 1);
+      carousel.appendChild(img);
+    });
+    if (images.length > 1) {
+      images.forEach((_, idx) => {
+        const dot = document.createElement('span');
+        dot.className = 'carousel-dot' + (idx === 0 ? ' active' : '');
+        dotsDiv.appendChild(dot);
+      });
+      carousel.onscroll = () => {
+        const scrollLeft = carousel.scrollLeft;
+        const width = carousel.offsetWidth;
+        const activeIdx = Math.round(scrollLeft / width);
+        dotsDiv.querySelectorAll('.carousel-dot').forEach((d, i) => {
+          d.className = 'carousel-dot' + (i === activeIdx ? ' active' : '');
+        });
+      };
+    }
   }
 
   const optionsDiv = document.getElementById('options');

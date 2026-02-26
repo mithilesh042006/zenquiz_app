@@ -11,7 +11,7 @@ class Question {
   final List<int> correctIndices;
   final QuestionType type;
   final int timeLimitSeconds; // 0 means use quiz default
-  final String? imageBase64; // optional image as base64 string
+  final List<String> imagesBase64; // optional images as base64 strings
 
   Question({
     String? id,
@@ -20,8 +20,12 @@ class Question {
     required this.correctIndices,
     this.type = QuestionType.singleChoice,
     this.timeLimitSeconds = 0,
-    this.imageBase64,
-  }) : id = id ?? const Uuid().v4();
+    List<String>? imagesBase64,
+    // backward compat: accept old single-image field
+    String? imageBase64,
+  }) : id = id ?? const Uuid().v4(),
+       imagesBase64 =
+           imagesBase64 ?? (imageBase64 != null ? [imageBase64] : const []);
 
   Question copyWith({
     String? id,
@@ -30,8 +34,7 @@ class Question {
     List<int>? correctIndices,
     QuestionType? type,
     int? timeLimitSeconds,
-    String? imageBase64,
-    bool clearImage = false,
+    List<String>? imagesBase64,
   }) {
     return Question(
       id: id ?? this.id,
@@ -40,7 +43,7 @@ class Question {
       correctIndices: correctIndices ?? List.from(this.correctIndices),
       type: type ?? this.type,
       timeLimitSeconds: timeLimitSeconds ?? this.timeLimitSeconds,
-      imageBase64: clearImage ? null : (imageBase64 ?? this.imageBase64),
+      imagesBase64: imagesBase64 ?? List.from(this.imagesBase64),
     );
   }
 
@@ -56,6 +59,14 @@ class Question {
   }
 
   factory Question.fromJson(Map<String, dynamic> json) {
+    // Support both old 'imageBase64' (single) and new 'imagesBase64' (list)
+    List<String> images = [];
+    if (json['imagesBase64'] != null) {
+      images = (json['imagesBase64'] as List).cast<String>();
+    } else if (json['imageBase64'] != null) {
+      images = [json['imageBase64'] as String];
+    }
+
     return Question(
       id: json['id'] as String?,
       text: json['text'] as String,
@@ -66,7 +77,7 @@ class Question {
         orElse: () => QuestionType.singleChoice,
       ),
       timeLimitSeconds: json['timeLimitSeconds'] as int? ?? 0,
-      imageBase64: json['imageBase64'] as String?,
+      imagesBase64: images,
     );
   }
 
@@ -77,6 +88,6 @@ class Question {
     'correctIndices': correctIndices,
     'type': type.name,
     'timeLimitSeconds': timeLimitSeconds,
-    if (imageBase64 != null) 'imageBase64': imageBase64,
+    if (imagesBase64.isNotEmpty) 'imagesBase64': imagesBase64,
   };
 }

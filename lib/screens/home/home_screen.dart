@@ -157,12 +157,15 @@ class HomeScreen extends ConsumerWidget {
         ),
       ),
       floatingActionButton: quizzes.isNotEmpty
-          ? FloatingActionButton.extended(
-              onPressed: () => context.push('/quiz/new'),
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('New Quiz'),
-            )
-          : null,
+    ? Padding(
+        padding: const EdgeInsets.only(bottom: 28.0), // ← adjust value
+        child: FloatingActionButton.extended(
+          onPressed: () => context.push('/quiz/new'),
+          icon: const Icon(Icons.add_rounded),
+          label: const Text('New Quiz'),
+        ),
+      )
+    : null,
     );
   }
 }

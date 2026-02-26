@@ -143,7 +143,8 @@ class _QuizControlScreenState extends ConsumerState<QuizControlScreen> {
       'text': question.text,
       'options': question.options,
       'timeLimitMs': _totalTimeMs,
-      if (question.imageBase64 != null) 'imageBase64': question.imageBase64,
+      if (question.imagesBase64.isNotEmpty)
+        'imagesBase64': question.imagesBase64,
     });
 
     // Start countdown

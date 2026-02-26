@@ -453,15 +453,28 @@ class _SettingsPanel extends StatelessWidget {
               segments: const [
                 ButtonSegment(
                   value: TimerMode.perQuestion,
-                  label: Text('Per Question'),
+                  icon: Icon(Icons.timer_outlined),
+                  label: Text('Per Q'),
                 ),
-                ButtonSegment(value: TimerMode.totalQuiz, label: Text('Total')),
+                ButtonSegment(
+                  value: TimerMode.totalQuiz,
+                  icon: Icon(Icons.public_rounded),
+                  label: Text('Total'),
+                ),
               ],
               selected: {settings.timerMode},
               onSelectionChanged: (value) {
                 onChanged(settings.copyWith(timerMode: value.first));
               },
-              style: ButtonStyle(visualDensity: VisualDensity.compact),
+              style: ButtonStyle(
+                visualDensity: VisualDensity.compact,
+                padding: WidgetStatePropertyAll(
+                  EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                ),
+                textStyle: WidgetStatePropertyAll(
+                  TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 16),
